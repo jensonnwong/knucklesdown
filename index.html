@@ -403,19 +403,19 @@ const OPP=[
   tip:'VINNY COUNTERS EVERY UMPH. OUT-TAP HIM AND SAVE UMPH FOR SNAPS.'},
  {name:'THE HYDRAULIC',from:'DETROIT PLANT 9',rec:'40-2',quote:'...WHIRRRR...',
   col:{main:'#475569',light:'#94a3b8',skin:'#c9a27e',skinD:'#a07a58'},face:{hair:'buzz',hairC:'#333',fac:'none',mouth:'flat',band:true,glasses:false,visor:true},
-  stats:{pow:1.05,cost:.6,regen:1.25,umph:1},ai:{rate:7.4,counter:.15,umph:0,react:.2,hold:.3,steady:true,tell:.4},
-  tip:'HE NEVER STOPS AND NEVER UMPHS. BRACE TO SURVIVE, SNAP TO WIN.'},
+  stats:{pow:1,cost:1,regen:1,umph:1},ai:{rate:7,counter:.15,umph:0,react:.2,hold:.3,steady:true,vent:4.5,tell:.4},
+  tip:'HE NEVER TIRES, BUT HE OVERHEATS. WHEN HE VENTS STEAM, UMPH HIM!'},
  {name:'MAMA BEAR',from:'BIG TIMBER, MT',rec:'45-5',quote:'COME HERE, CUBBY.',
   col:{main:'#9f1239',light:'#fb7185',skin:'#b07650',skinD:'#87573a'},face:{hair:'afro',hairC:'#2b1a10',fac:'none',mouth:'grin',band:true,glasses:false},
-  stats:{pow:1.1,cost:.95,regen:1,umph:1.15},ai:{rate:6.2,counter:.35,umph:.9,react:.16,hold:1.1,snap:true,tell:.32},
+  stats:{pow:1.05,cost:.95,regen:1,umph:1.1},ai:{rate:6,counter:.35,umph:.9,react:.16,hold:1.1,snap:true,tell:.32},
   tip:'SHE HOLDS, THEN SNAPS. WHEN HER GRIP FLASHES, HIT UMPH!'},
  {name:'IRON CURTAIN',from:'NOVOGRAD',rec:'52-3',quote:'YOU WILL BEND.',
   col:{main:'#7f1d1d',light:'#f87171',skin:'#efc5a3',skinD:'#c99c7a'},face:{hair:'flat',hairC:'#e5e7eb',fac:'stache',facC:'#e5e7eb',mouth:'flat',band:false,glasses:false},
-  stats:{pow:1.15,cost:.88,regen:1.05,umph:1.15},ai:{rate:7.6,counter:.5,umph:.6,react:.13,hold:1,snap:true,tell:.26},
+  stats:{pow:1.05,cost:1,regen:1,umph:1.1},ai:{rate:6.6,counter:.45,umph:.6,react:.13,hold:1,snap:true,tell:.26},
   tip:'NO WEAKNESS. MANAGE YOUR GAS AND PUNISH EVERY TELL.'},
  {name:'KING KNUCKLES',from:'THE THRONE',rec:'99-0',quote:'KNEEL. THEN LOSE.',
   col:{main:'#a16207',light:'#fde047',skin:'#8d5a3b',skinD:'#6a3f27'},face:{hair:'crown',hairC:'#fde047',fac:'beard',facC:'#1a1a1a',mouth:'grit',band:false,glasses:false},
-  stats:{pow:1.2,cost:.85,regen:1.1,umph:1.25},ai:{rate:8.4,counter:.6,umph:.8,react:.12,hold:1.1,snap:true,tell:.22},secondWind:true,
+  stats:{pow:1.08,cost:1,regen:1,umph:1.2},ai:{rate:7,counter:.5,umph:.8,react:.12,hold:1.1,snap:true,tell:.22},secondWind:true,
   tip:'THE KING GETS A SECOND WIND ONCE. KEEP PRESSURE AFTER IT!'}
 ];
 const DEF_COL1={main:'#dc2626',light:'#f87171',skin:'#a86b45',skinD:'#7c4a2b'};
@@ -553,6 +553,10 @@ function cpuThink(dt){
   // counter reads (reactions, no tell)
   if(you.umphT>c.seenU){c.seenU=you.umphT;if(me.cd<=0&&me.gassed<=0&&me.end>10&&Math.random()<d.counter)c.umphAt=G.t+d.react*(.7+Math.random()*.5)}
   if(c.umphAt&&G.t>=c.umphAt){c.umphAt=0;umph(1)}
+  // overheating machines: every few seconds they vent and barely pull
+  if(d.vent){if(!c.ventNext)c.ventNext=G.t+d.vent;
+    if(G.t>=c.ventNext){c.ventUntil=G.t+2;c.ventNext=c.ventUntil+d.vent*(.85+Math.random()*.3);pop('VENTING!','#cbd5e1',1,.85);G.ventT=G.t}
+    if(G.t<c.ventUntil){if(me.down)pull(1,false);me.D*=Math.exp(-2*dt);return}}
   if(me.gassed>0){if(me.down)pull(1,false);return}
   // rest management (steady machines never rest)
   if(!d.steady){
@@ -591,10 +595,10 @@ function update(dt){
       if(pl.gassed>0){
         pl.gassed-=dt;pl.holding=false;pl.end=Math.min(100,pl.end+24*dt);pl.D*=Math.exp(-3*dt);
       }else if(pl.holding){
-        pl.D*=Math.exp(-.12*dt);pl.end-=(3+1.9*pl.D)*dt*G.stats[i].cost;
+        pl.D*=Math.exp(-.12*dt);pl.end-=(2+1.3*pl.D)*dt*G.stats[i].cost;
       }else{
         pl.D*=Math.exp(-2.8*dt);
-        if(!pl.down&&G.t-pl.lastTap>.35)pl.end+=15*dt*G.stats[i].regen;
+        if(!pl.down&&G.t-pl.lastTap>.35&&!(i===1&&G.cpu&&G.cpu.ventUntil>G.t))pl.end+=15*dt*G.stats[i].regen; // venting is not resting
       }
       pl.end=clamp(pl.end,0,100);
       if(i===1&&G.mode==='story'&&OPP[G.opp].secondWind&&!pl.sw&&pl.end<18&&pl.gassed<=0){pl.sw=true;pl.end=70;pop('SECOND WIND!','#fde047',1,.9)}
@@ -603,8 +607,8 @@ function update(dt){
     }
     if(G.p<0)f[0]*=1-.35*Math.abs(G.p);
     if(G.p>0)f[1]*=1-.35*Math.abs(G.p);
-    if(P[1].holding)f[0]*=.7;
-    if(P[0].holding)f[1]*=.7;
+    if(P[1].holding)f[0]*=.6;
+    if(P[0].holding)f[1]*=.6;
     G.p+=(f[0]-f[1])*.085*dt;
     if(G.p>=1)pin(0);else if(G.p<=-1)pin(1);
   }
