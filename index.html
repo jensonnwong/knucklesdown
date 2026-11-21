@@ -114,7 +114,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
     <ul>
       <li><b>TAP PULL</b> builds pulling power. Faster taps = more power, each tap costs a little endurance.</li>
       <li><b>HOLD PULL</b> locks your current power in and <b>braces</b> (opponent pulls 30% weaker vs you). Holding drains endurance — harder the more power you're locking.</li>
-      <li><b>UMPH</b> is a big burst (16 endurance, short cooldown).</li>
+      <li><b>UMPH</b> is a big burst (11 endurance, short cooldown). It hits hardest as a SNAP or COUNTER, or when they're gassed, venting or letting go of a hold.</li>
       <li><b>SNAP:</b> Umph while you've been holding 1+ sec = 1.5× burst.</li>
       <li><b>COUNTER:</b> Umph within 0.3 sec of your opponent's Umph cancels most of theirs and costs you half.</li>
       <li><b>Let go</b> to recover endurance. Hit zero and you're <b>GASSED</b> for ~2 sec: weak pull, no Umph, no hold.</li>
@@ -335,9 +335,9 @@ function umph(i){
   if(G.phase!=='fight')return;
   const pl=P[i],o=P[1-i];
   if(pl.cd>0||pl.gassed>0)return;
-  let pow=3.5,cost=16,tag='UMPH!',col='#22d3ee',snd=SFX.umph;
+  let pow=4.9,cost=11,tag='UMPH!',col='#22d3ee',snd=SFX.umph;
   if(pl.holding&&G.t-pl.holdStart>=1){pow*=1.5;tag='SNAP!';col='#a3e635';snd=SFX.snap}
-  if(G.t-o.umphT<.3&&!o.countered){o.D=Math.max(0,o.D-3.2);o.countered=true;pow*=1.3;cost=8;tag='COUNTER!';col='#f0abfc';snd=SFX.counter}
+  if(G.t-o.umphT<.3&&!o.countered){o.D=Math.max(0,o.D-3.2);o.countered=true;pow*=1.3;cost=6;tag='COUNTER!';col='#f0abfc';snd=SFX.counter}
   const st=G.stats[i];pow*=st.umph;cost*=st.cost;
   if(pl.end<cost){pow*=Math.max(.2,pl.end/cost);pl.end=0}else pl.end-=cost;
   pl.D=Math.min(9,pl.D+pow);pl.cd=.8;pl.umphT=G.t;pl.countered=false;pl.bump=1.6;
@@ -414,7 +414,7 @@ const OPP=[
   tip:'VINNY COUNTERS EVERY UMPH. OUT-TAP HIM AND SAVE UMPH FOR SNAPS.'},
  {name:'THE HYDRAULIC',from:'DETROIT PLANT 9',rec:'40-2',quote:'...WHIRRRR...',
   col:{main:'#475569',light:'#94a3b8',skin:'#c9a27e',skinD:'#a07a58'},face:{hair:'buzz',hairC:'#333',fac:'none',mouth:'flat',band:true,glasses:false,visor:true},
-  stats:{pow:1,cost:1,regen:1,umph:1},ai:{rate:7,counter:.15,umph:0,react:.2,hold:.3,steady:true,vent:4.5,tell:.4},
+  stats:{pow:1.12,cost:1,regen:1,umph:1},ai:{rate:7.8,counter:.15,umph:0,react:.2,hold:.3,steady:true,vent:6.5,tell:.4},
   tip:'HE NEVER TIRES, BUT HE OVERHEATS. WHEN HE VENTS STEAM, UMPH HIM!'},
  {name:'MAMA BEAR',from:'BIG TIMBER, MT',rec:'45-5',quote:'COME HERE, CUBBY.',
   col:{main:'#9f1239',light:'#fb7185',skin:'#b07650',skinD:'#87573a'},face:{hair:'afro',hairC:'#2b1a10',fac:'none',mouth:'grin',band:true,glasses:false},
