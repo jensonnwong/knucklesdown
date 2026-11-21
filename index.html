@@ -25,6 +25,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 .btn.pull{flex:1.4}
 .btn small{font-family:"VT323",monospace;font-size:clamp(14px,3.8vw,18px);opacity:.9;letter-spacing:1px;text-shadow:2px 2px 0 var(--ink)}
 #padB .pull{background:var(--blue)}#padB .umph{background:var(--cyan)}
+#padT .pull,#padB.red .pull{background:var(--red)}#padB.red .umph{background:var(--orange)}
 #padT .pull{background:var(--red)}#padT .umph{background:var(--orange)}
 .btn.on{filter:brightness(1.2)}
 .btn.hold{outline:var(--px) solid var(--yellow);outline-offset:calc(var(--px)*-3);filter:brightness(1.15)}
@@ -54,6 +55,12 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #ovT{font-size:clamp(22px,8vw,44px)}
 .ov h2{margin:0;font-size:clamp(16px,5.5vw,26px);font-weight:400;color:var(--yellow);text-shadow:3px 3px 0 var(--ink)}
 #story{gap:10px}
+.codebox{display:flex;flex-direction:column;align-items:center;gap:8px;background:#0b0820;border:4px solid #fff;clip-path:var(--notch);padding:10px 22px;min-width:200px}
+.codebox small,.field small{font-family:"VT323",monospace;font-size:18px;color:#a5b4fc}
+.codebox b{font-weight:400;font-size:clamp(26px,9vw,40px);letter-spacing:10px;color:var(--yellow);text-shadow:3px 3px 0 var(--ink)}
+.field{display:flex;flex-direction:column;align-items:center;gap:6px}
+.field input{font-family:"Press Start 2P",monospace;font-size:24px;width:200px;text-align:center;letter-spacing:10px;padding:12px 6px;background:#0b0820;color:var(--yellow);border:4px solid #fff;clip-path:var(--notch);outline:none;text-transform:uppercase}
+.field input:focus{border-color:var(--yellow)}
 #story .sub{margin:0}
 #story canvas{position:static;inset:auto;display:block;flex:none;image-rendering:pixelated;width:44px;height:44px;border:3px solid var(--ink);clip-path:var(--notch);--px:3px}
 #story canvas.big{width:144px;height:144px;border-width:4px;--px:4px}
@@ -98,6 +105,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
   <button class="pxb" id="storyBtn" style="background:#dc2626">STORY MODE</button>
   <button class="pxb" id="cpu">VS CPU</button>
   <button class="pxb" id="pvp">2 PLAYER FACE-OFF</button>
+  <button class="pxb" id="onlineBtn" style="background:var(--blue)">ONLINE</button>
   <button class="alt pxb" id="optBtn">OPTIONS</button>
   <button class="alt pxb" id="howBtn">HOW TO PLAY</button>
 <div id="how" hidden>
@@ -129,6 +137,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 </div>
 
 <div id="story" class="ov" hidden></div>
+<div id="online" class="ov" hidden></div>
 
 <div id="over" class="ov" hidden>
   <h1 id="ovT">BLUE WINS!</h1>
@@ -152,7 +161,7 @@ const NAMES=['BRICK','TANK'];
 const COL=[{main:'#2563eb',light:'#60a5fa',skin:'#efb48a',skinD:'#c98a5f'},{main:'#dc2626',light:'#f87171',skin:'#a86b45',skinD:'#7c4a2b'}];
 const DIFF=[{rate:4.6,counter:.12,umph:.25,react:.24},{rate:6.6,counter:.35,umph:.45,react:.18},{rate:8.4,counter:.6,umph:.7,react:.12}];
 
-const G={mode:'menu',opp:0,stats:[{pow:1,cost:1,regen:1,umph:1},{pow:1,cost:1,regen:1,umph:1}],ai:null,tellT:-9,phase:'menu',t:0,phaseT:0,p:0,pv:0,round:1,wins:[0,0],shake:0,flash:0,pops:[],parts:[],fouled:[false,false],vsCPU:false,diff:1,cpu:null};
+const G={online:false,me:0,mode:'menu',opp:0,stats:[{pow:1,cost:1,regen:1,umph:1},{pow:1,cost:1,regen:1,umph:1}],ai:null,tellT:-9,phase:'menu',t:0,phaseT:0,p:0,pv:0,round:1,wins:[0,0],shake:0,flash:0,pops:[],parts:[],fouled:[false,false],vsCPU:false,diff:1,cpu:null};
 const mk=()=>({D:0,end:100,down:false,holding:false,pressT:-9,holdStart:0,gassed:0,cd:0,umphT:-9,countered:false,lastTap:-9,bump:0});
 let P=[mk(),mk()];
 
@@ -259,6 +268,7 @@ function pickVoice(){
 }
 try{if(window.speechSynthesis){ANN=pickVoice();speechSynthesis.onvoiceschanged=()=>{ANN=pickVoice()}}}catch(e){}
 function announce(text,{rate=.92,pitch=.55,queue=false}={}){
+  if(typeof hosting==='function'&&hosting())NET.ev.push(['a',text,{rate,pitch,queue}]);
   if(!SOUND_ON||!window.speechSynthesis)return;
   try{if(!queue)speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);if(ANN)u.voice=ANN;u.rate=rate;u.pitch=pitch;u.volume=1;speechSynthesis.speak(u)}catch(e){}
 }
@@ -271,7 +281,7 @@ const SFX=new Proxy({
   snap:i=>SFX.umph(i),
   counter:i=>SFX.umph(i),
   pin:()=>crowdRoar(1.4)
-},{get:(o,k)=>o[k]||(()=>{})});
+},{get:(o,k)=>{const f=o[k]||(()=>{});return (...a)=>{if(typeof hosting==='function'&&hosting()&&o[k])NET.ev.push(['s',k,a[0]]);return f(...a)}}});
 
 function audioUpdate(dt){
   if(!AC||!MASTER)return;
@@ -298,7 +308,7 @@ let handXY=[0,0];
 function startMatch(){
   if(G.mode==='story'){const o=OPP[G.opp];COL[1]=o.col;NAMES[1]=o.name;G.stats=[BASE_STATS,o.stats];G.ai=Object.assign({rate:6,counter:.3,umph:.4,react:.18,hold:1,tell:.3},o.ai)}
   else{COL[1]=DEF_COL1;NAMES[1]='TANK';G.stats=[BASE_STATS,BASE_STATS];G.ai=Object.assign({hold:.6+G.diff*.4,snap:G.diff>0,tell:[.45,.3,.18][G.diff]},DIFF[G.diff])}
-  G.wins=[0,0];G.round=1;startRound();showOnly(null);padB.hidden=false;padT.hidden=G.vsCPU;gameBtns(true)}
+  G.wins=[0,0];G.round=1;startRound();showOnly(null);padB.hidden=false;padT.hidden=G.vsCPU||G.online;gameBtns(true)}
 function startRound(){
   const rn=['one','two','three'][G.round-1];
   announce((G.mode==='story'&&G.round===1?NAMES[1].toLowerCase()+'! ':'')+'Round '+rn+'... ready...',{rate:G.mode==='story'&&G.round===1?1.05:.95});P=[mk(),mk()];G.p=0;G.pv=0;G.phase='ready';G.phaseT=0;G.fouled=[false,false];G.pops=[];G.cpu={acc:0,seenU:-9,umphAt:0,resting:false,holdUntil:0};}
@@ -341,18 +351,19 @@ function bindBtn(el,down,up){
   el.addEventListener('contextmenu',e=>e.preventDefault());
 }
 const B={p0:document.getElementById('b0p'),u0:document.getElementById('b0u'),p1:document.getElementById('b1p'),u1:document.getElementById('b1u')};
-bindBtn(B.p0,()=>pull(0,true),()=>pull(0,false));
-bindBtn(B.u0,()=>umph(0));
+bindBtn(B.p0,()=>myPull(true),()=>myPull(false));
+bindBtn(B.u0,()=>myUmph());
 bindBtn(B.p1,()=>{if(!G.vsCPU)pull(1,true)},()=>{if(!G.vsCPU)pull(1,false)});
 bindBtn(B.u1,()=>{if(!G.vsCPU)umph(1)});
 const keys={};
 addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(keys[k])return;keys[k]=1;
-  if(k==='a')pull(0,true);if(k==='s')umph(0);
-  if(!G.vsCPU){if(k==='l')pull(1,true);if(k==='k')umph(1)}});
-addEventListener('keyup',e=>{const k=e.key.toLowerCase();keys[k]=0;if(k==='a')pull(0,false);if(k==='l'&&!G.vsCPU)pull(1,false)});
+  if(k==='a')myPull(true);if(k==='s')myUmph();
+  if(!G.vsCPU&&!G.online){if(k==='l')pull(1,true);if(k==='k')umph(1)}});
+addEventListener('keyup',e=>{const k=e.key.toLowerCase();keys[k]=0;if(k==='a')myPull(false);if(k==='l'&&!G.vsCPU&&!G.online)pull(1,false)});
 
 /* menu */
 document.getElementById('pvp').onclick=()=>{ac();G.mode='pvp';G.vsCPU=false;startMatch()};
+document.getElementById('onlineBtn').onclick=()=>{ac();onlineMenu()};
 document.getElementById('cpu').onclick=()=>{ac();G.mode='cpu';G.vsCPU=true;startMatch()};
 document.getElementById('storyBtn').onclick=()=>{ac();storyHub()};
 document.getElementById('optBtn').onclick=()=>showOnly('opts');
@@ -376,8 +387,8 @@ function applyHands(){
 document.querySelectorAll('.seg[data-p] button').forEach(b=>b.onclick=()=>{HAND[+b.parentNode.dataset.p]=b.dataset.h;applyHands()});
 applyHands();
 document.getElementById('howBtn').onclick=()=>{const h=document.getElementById('how');h.hidden=!h.hidden};
-document.getElementById('again').onclick=()=>startMatch();
-document.getElementById('toMenu').onclick=()=>{G.phase='menu';showOnly('menu');padB.hidden=true;padT.hidden=true;gameBtns(false)};
+document.getElementById('again').onclick=()=>{if(G.online){if(G.me===0)netStart();else{netSend({t:'rematch',id:NET.id});document.getElementById('again').textContent='WAITING...'}}else startMatch()};
+document.getElementById('toMenu').onclick=()=>{if(G.online||NET.role){netLeave();return}G.phase='menu';showOnly('menu');padB.hidden=true;padT.hidden=true;gameBtns(false)};
 
 /* ---------- STORY MODE ----------
    Three circuits, eight opponents. Each has stats (power/stamina/speed/tricks), an AI profile,
@@ -473,7 +484,7 @@ function statBars(o){
   return Object.entries(v).map(([k,val])=>{const n=Math.max(1,Math.min(10,Math.round(val*(k==='SPEED'||k==='TRICKS'?10:6.5))));
     return `<div class="stat"><span>${k}</span><i>${'<b></b>'.repeat(n)}${'<b class=o></b>'.repeat(10-n)}</i></div>`}).join('');
 }
-function showOnly(id){['menu','opts','story','over'].forEach(k=>{const e=document.getElementById(k);if(e)e.hidden=k!==id})}
+function showOnly(id){['menu','opts','story','over','online'].forEach(k=>{const e=document.getElementById(k);if(e)e.hidden=k!==id})}
 function storyHub(msg){
   G.phase='menu';showOnly('story');padB.hidden=true;padT.hidden=true;gameBtns(false);
   const ci=Math.max(0,circuitOf(Math.min(STORY.idx,OPP.length-1))),C=CIRCUITS[ci];
@@ -543,6 +554,150 @@ function storyResult(w){
   }
 }
 
+/* ---------- ONLINE (no login) ----------
+   Uses the WW Supabase project's Realtime "broadcast" channels: just a relay, nothing stored.
+   Host (Blue) runs the match and streams the state ~20x/sec; Guest (Red) sends button presses.
+   Room code = channel name. Join key = 4 digits the host shares; the host only accepts a guest
+   who sends the right key, and only one guest. */
+const SB_URL='https://bekcyzospcruszqtpcpe.supabase.co',SB_KEY='sb_publishable_eHpZIgofIqg32ncq3B73fw_vXdNbdzY';
+const NET={sb:null,ch:null,role:null,code:'',key:'',id:Math.random().toString(36).slice(2,10),guest:null,lastRx:0,sendT:0,ev:[],helloTimer:0,startT:0};
+function ME(){return G.online?G.me:0}
+function hosting(){return G.online&&G.me===0}
+function loadSB(){return new Promise((res,rej)=>{if(window.supabase)return res();const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';s.onload=()=>res();s.onerror=()=>rej(new Error('load'));document.head.appendChild(s)})}
+function onlineScreen(html){showOnly('online');document.getElementById('online').innerHTML=html}
+function netSend(msg){if(NET.ch)NET.ch.send({type:'broadcast',event:'m',payload:msg}).catch(()=>{})}
+function genCode(){const A='ABCDEFGHJKLMNPQRSTUVWXYZ';return Array.from({length:4},()=>A[Math.floor(Math.random()*A.length)]).join('')}
+async function netOpen(code){
+  await loadSB();
+  if(!NET.sb)NET.sb=window.supabase.createClient(SB_URL,SB_KEY,{realtime:{params:{eventsPerSecond:40}}});
+  if(NET.ch){try{await NET.sb.removeChannel(NET.ch)}catch(e){}}
+  NET.ch=NET.sb.channel('knuckledown-'+code,{config:{broadcast:{self:false,ack:false}}});
+  NET.ch.on('broadcast',{event:'m'},({payload})=>netRx(payload));
+  return new Promise((res,rej)=>{let done=false;
+    NET.ch.subscribe(st=>{if(done)return;if(st==='SUBSCRIBED'){done=true;res()}else if(st==='CHANNEL_ERROR'||st==='TIMED_OUT'){done=true;rej(new Error(st))}});
+    setTimeout(()=>{if(!done){done=true;rej(new Error('timeout'))}},9000)});
+}
+function netFail(){onlineScreen(`<h2>CAN'T CONNECT</h2><p class="msg">Online play needs an internet connection. It works on the GitHub version of the game, not inside the Claude preview.</p><button class="alt pxb" id="onBack">BACK</button>`);document.getElementById('onBack').onclick=netLeave}
+function netLeave(){
+  clearInterval(NET.helloTimer);
+  if(NET.ch&&NET.sb){try{netSend({t:'bye',id:NET.id});NET.sb.removeChannel(NET.ch)}catch(e){}}
+  NET.ch=null;NET.role=null;NET.guest=null;G.online=false;G.me=0;padB.classList.remove('red');
+  G.phase='menu';padB.hidden=true;padT.hidden=true;gameBtns(false);showOnly('menu');
+}
+function onlineMenu(){
+  onlineScreen(`<h2>ONLINE</h2><p class="sub">PLAY A FRIEND ON ANOTHER PHONE<br>NO ACCOUNT NEEDED</p>
+    <button class="pxb" id="onHost">CREATE ROOM</button>
+    <button class="pxb" id="onJoin" style="background:var(--blue)">JOIN ROOM</button>
+    <button class="alt pxb" id="onBack">BACK</button>`);
+  document.getElementById('onHost').onclick=hostRoom;
+  document.getElementById('onJoin').onclick=joinForm;
+  document.getElementById('onBack').onclick=()=>showOnly('menu');
+}
+async function hostRoom(){
+  NET.role='host';NET.code=genCode();NET.key=String(Math.floor(1000+Math.random()*9000));NET.guest=null;
+  onlineScreen(`<h2>CONNECTING...</h2>`);
+  try{await netOpen(NET.code)}catch(e){return netFail()}
+  onlineScreen(`<h2>ROOM READY</h2><p class="sub">GIVE YOUR FRIEND BOTH OF THESE</p>
+    <div class="codebox"><small>ROOM CODE</small><b>${NET.code}</b></div>
+    <div class="codebox"><small>JOIN KEY</small><b>${NET.key}</b></div>
+    <p class="msg" id="onStatus">WAITING FOR OPPONENT...</p>
+    <p class="meta">YOU ARE BLUE</p>
+    <button class="alt pxb" id="onBack">CANCEL</button>`);
+  document.getElementById('onBack').onclick=netLeave;
+}
+function joinForm(){
+  onlineScreen(`<h2>JOIN ROOM</h2>
+    <label class="field"><small>ROOM CODE</small><input id="inCode" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABCD"></label>
+    <label class="field"><small>JOIN KEY</small><input id="inKey" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="1234"></label>
+    <p class="msg" id="onStatus"></p>
+    <button class="pxb" id="onGo" style="background:var(--blue)">JOIN</button>
+    <button class="alt pxb" id="onBack">BACK</button>`);
+  const c=document.getElementById('inCode');c.oninput=()=>{c.value=c.value.toUpperCase().replace(/[^A-Z]/g,'')};
+  const k=document.getElementById('inKey');k.oninput=()=>{k.value=k.value.replace(/\D/g,'')};
+  document.getElementById('onGo').onclick=joinRoom;
+  document.getElementById('onBack').onclick=onlineMenu;
+  c.focus();
+}
+async function joinRoom(){
+  const code=document.getElementById('inCode').value,key=document.getElementById('inKey').value,st=document.getElementById('onStatus');
+  if(code.length!==4||key.length!==4){st.textContent='ENTER THE 4-LETTER CODE AND 4-DIGIT KEY';return}
+  st.textContent='CONNECTING...';NET.role='guest';NET.code=code;NET.key=key;
+  try{await netOpen(code)}catch(e){return netFail()}
+  st.textContent='KNOCKING...';let tries=0;
+  clearInterval(NET.helloTimer);
+  const hello=()=>{if(++tries>8){clearInterval(NET.helloTimer);st.textContent='NO ROOM FOUND. CHECK THE CODE.';NET.role=null;return}netSend({t:'hello',id:NET.id,key})};
+  hello();NET.helloTimer=setInterval(hello,1000);
+}
+function netRx(m){
+  NET.lastRx=performance.now();
+  if(NET.role==='host'){
+    if(m.t==='hello'){
+      if(NET.guest&&NET.guest!==m.id)return netSend({t:'deny',id:m.id,why:'ROOM IS FULL'});
+      if(m.key!==NET.key)return netSend({t:'deny',id:m.id,why:'WRONG JOIN KEY'});
+      if(NET.guest===m.id)return; // repeat knock
+      NET.guest=m.id;netSend({t:'welcome',id:m.id});
+      const s=document.getElementById('onStatus');if(s)s.textContent='OPPONENT JOINED!';
+      setTimeout(()=>{if(NET.guest)netStart()},900);
+    }else if(m.id!==NET.guest)return;
+    else if(m.t==='in'){if(m.a==='pd')pull(1,true);else if(m.a==='pu')pull(1,false);else if(m.a==='um')umph(1)}
+    else if(m.t==='rematch'){if(G.phase==='over')netStart()}
+    else if(m.t==='bye'){netGone()}
+  }else if(NET.role==='guest'){
+    if(m.t==='welcome'&&m.id===NET.id){clearInterval(NET.helloTimer);const s=document.getElementById('onStatus');if(s)s.textContent='JOINED! GET READY...'}
+    else if(m.t==='deny'&&m.id===NET.id){clearInterval(NET.helloTimer);const s=document.getElementById('onStatus');if(s)s.textContent=m.why;NET.role=null}
+    else if(m.t==='start'&&m.to===NET.id){guestStart()}
+    else if(m.t==='s'&&G.online)applyState(m)
+    else if(m.t==='bye'){netGone()}
+  }
+}
+function netStart(){ // host
+  ac();G.online=true;G.me=0;G.mode='online';G.vsCPU=false;NET.ev=[];
+  NET.lastRx=performance.now();startMatch();netSend({t:'start',to:NET.guest});
+}
+function guestStart(){
+  NET.lastRx=performance.now();ac();G.online=true;G.me=1;G.mode='online';G.vsCPU=false;
+  COL[1]=DEF_COL1;NAMES[1]='TANK';G.wins=[0,0];G.round=1;P=[mk(),mk()];G.phase='ready';G.phaseT=0;G.pops=[];
+  showOnly(null);padB.hidden=false;padT.hidden=true;gameBtns(true);padB.classList.add('red');
+}
+function netGone(){
+  if(!G.online&&NET.role!=='host'){return}
+  const was=G.online;
+  if(NET.role==='host'&&!was){NET.guest=null;const s=document.getElementById('onStatus');if(s)s.textContent='WAITING FOR OPPONENT...';return}
+  G.online=false;G.phase='menu';padB.hidden=true;padT.hidden=true;gameBtns(false);
+  onlineScreen(`<h2>OPPONENT LEFT</h2><p class="msg">THE CONNECTION WAS LOST.</p><button class="alt pxb" id="onBack">MENU</button>`);
+  document.getElementById('onBack').onclick=netLeave;
+}
+function myPull(down){if(G.online&&G.me===1){netSend({t:'in',id:NET.id,a:down?'pd':'pu'});if(down)ac()}else pull(0,down)}
+function myUmph(){if(G.online&&G.me===1){netSend({t:'in',id:NET.id,a:'um'});ac()}else umph(0)}
+function netTick(){ // called every frame
+  if(!G.online)return;
+  const t=performance.now();
+  if(t-NET.lastRx>7000&&NET.lastRx>0)return netGone();
+  if(G.me===0){
+    if(t-NET.sendT<50)return;NET.sendT=t;
+    netSend({t:'s',p:+G.p.toFixed(4),ph:G.phase,pt:+G.phaseT.toFixed(2),r:G.round,w:G.wins,sh:+G.shake.toFixed(2),fl:+G.flash.toFixed(2),
+      pl:P.map(q=>[+q.D.toFixed(2),+q.end.toFixed(1),q.down?1:0,q.holding?1:0,+q.gassed.toFixed(2),+q.cd.toFixed(2),+q.bump.toFixed(2),+(G.t-q.holdStart).toFixed(2)]),
+      pops:G.pops.map(o=>[o.text,o.color,o.side,o.size,+o.t.toFixed(2)]),ev:NET.ev.splice(0)});
+  }else if(t-NET.sendT>1000){NET.sendT=t;netSend({t:'ping',id:NET.id})}
+}
+function applyState(m){
+  const prev=G.phase;
+  G.p=m.p;G.phase=m.ph;G.phaseT=m.pt;G.round=m.r;G.wins=m.w;G.shake=Math.max(G.shake,m.sh);G.flash=Math.max(G.flash,m.fl);
+  m.pl.forEach((a,i)=>{const q=P[i];[q.D,q.end]=a;q.down=!!a[2];q.holding=!!a[3];q.gassed=a[4];q.cd=a[5];q.bump=a[6];q.holdStart=G.t-a[7]});
+  G.pops=m.pops.map(a=>({text:a[0],color:a[1],side:a[2],size:a[3],t:a[4]}));
+  for(const e of m.ev||[]){if(e[0]==='s'){SFX[e[1]](e[2]);if(e[1]==='pin'){burst(handXY[0],handXY[1],'#fde047',30)}}else if(e[0]==='a')announce(e[1],e[2]||{})}
+  if(m.ph==='over'&&prev!=='over')showOver(G.wins[0]>=2?0:1);
+  if(m.ph!=='over'&&prev==='over'){showOnly(null);padB.hidden=false;gameBtns(true)}
+}
+function showOver(w){
+  G.phase='over';padB.hidden=true;padT.hidden=true;gameBtns(false);
+  const mine=w===ME();
+  document.getElementById('ovT').textContent=G.online?(mine?'YOU WIN!':'YOU LOSE'):(G.vsCPU?(w===0?'YOU WIN!':'CPU WINS!'):(w===0?'BLUE WINS!':'RED WINS!'));
+  document.getElementById('ovS').textContent=`${NAMES[w]} TAKES IT ${G.wins[w]}–${G.wins[1-w]}`;
+  document.getElementById('again').textContent='REMATCH';
+  showOnly('over');
+}
+
 /* ---------- CPU ---------- */
 function cpuThink(dt){
   const c=G.cpu,me=P[1],you=P[0],d=G.ai;
@@ -578,8 +733,24 @@ function cpuThink(dt){
 }
 
 /* ---------- update ---------- */
+function buttonsUI(){
+  for(let s=0;s<2;s++){ // slot 0 = bottom pad (always "me"), slot 1 = top pad
+    const pl=P[s===0?ME():1-ME()],pb=B['p'+s],ub=B['u'+s];
+    pb.classList.toggle('on',pl.down);pb.classList.toggle('hold',pl.holding);
+    pb.classList.toggle('dead',pl.gassed>0);ub.classList.toggle('dead',pl.gassed>0);
+    ub.firstElementChild.style.height=(pl.cd/.8*100)+'%';
+  }
+}
+function guestTick(dt){
+  G.t+=dt;G.shake=Math.max(0,G.shake-dt*2.5);G.flash=Math.max(0,G.flash-dt*3);
+  G.pv+=(G.p-G.pv)*Math.min(1,dt*12);
+  G.parts.forEach(p=>{p.t+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=600*dt});G.parts=G.parts.filter(p=>p.t<p.life);
+  buttonsUI();
+}
 function update(dt){
   audioUpdate(dt);
+  netTick();
+  if(G.online&&G.me===1){guestTick(dt);return}
   G.t+=dt;G.phaseT+=dt;
   G.shake=Math.max(0,G.shake-dt*2.5);G.flash=Math.max(0,G.flash-dt*3);
   if(G.phase==='menu'){G.p=Math.sin(G.t*.9)*.35+Math.sin(G.t*2.3)*.08;P[0].D=2+Math.sin(G.t*1.3)*1.5;P[1].D=2+Math.cos(G.t*1.1)*1.5}
@@ -617,22 +788,14 @@ function update(dt){
       G.phase='over';padB.hidden=true;padT.hidden=true;gameBtns(false);
       const w=G.wins[0]>=2?0:1;
       if(G.mode==='story'){storyResult(w);G.pv+=(G.p-G.pv)*Math.min(1,dt*12);return}
-      document.getElementById('ovT').textContent=(G.vsCPU?(w===0?'YOU WIN!':'CPU WINS!'):(w===0?'BLUE WINS!':'RED WINS!'));
-      document.getElementById('ovS').textContent=`${NAMES[w]} TAKES IT ${G.wins[w]}–${G.wins[1-w]}`;
-      document.getElementById('over').hidden=false;
+      showOver(w);
     }else{G.round++;startRound()}
   }
   G.pv+=(G.p-G.pv)*Math.min(1,dt*12);
   P.forEach(pl=>pl.bump=Math.max(0,pl.bump-dt*6));
   G.pops.forEach(p=>p.t+=dt);G.pops=G.pops.filter(p=>p.t<1.1);
   G.parts.forEach(p=>{p.t+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=600*dt});G.parts=G.parts.filter(p=>p.t<p.life);
-  // buttons
-  for(let i=0;i<2;i++){
-    const pl=P[i],pb=B['p'+i],ub=B['u'+i];
-    pb.classList.toggle('on',pl.down);pb.classList.toggle('hold',pl.holding);
-    pb.classList.toggle('dead',pl.gassed>0);ub.classList.toggle('dead',pl.gassed>0);
-    ub.firstElementChild.style.height=(pl.cd/.8*100)+'%';
-  }
+  buttonsUI();
 }
 
 /* ---------- drawing (top-down) ---------- */
@@ -643,7 +806,7 @@ function bigText(str,x,y,size,fill,rot=0){
   ctx.fillStyle=fill;ctx.fillText(str,0,0);
   ctx.restore();
 }
-const flipP2=()=>!G.vsCPU&&G.phase!=='menu';
+const flipP2=()=>!G.vsCPU&&!G.online&&G.phase!=='menu';
 function textFor(i,str,x,y,size,col){
   if(i===1&&flipP2()){ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI);bigText(str,0,0,size,col);ctx.restore()}
   else bigText(str,x,y,size,col);
@@ -1025,7 +1188,7 @@ function drawHUDfor(i,L){
   const pl=P[i],c=COL[i];
   const bw=Math.min(W-28,380),x=-bw/2;
   ctx.save();
-  if(i===0)ctx.translate(L.cx,L.bot-6);
+  if(i===ME())ctx.translate(L.cx,L.bot-6);
   else if(flipP2()){ctx.translate(L.cx,L.top+6);ctx.rotate(Math.PI)}
   else ctx.translate(L.cx,L.top+L.hud-2);
   // name
@@ -1052,7 +1215,6 @@ function drawHUDfor(i,L){
 
 function drawFX(L){
   const sz=Math.min(W,520)*.11;
-  for(const p of G.parts){ctx.globalAlpha=1-p.t/p.life;blob(p.x,p.y,p.r,p.r,p.col,0);ctx.globalAlpha=1}
   const twoSided=flipP2();
   if(G.phase==='fight'&&G.t-G.tellT<(G.tellLen||.3)){ // opponent's tell: flashing ring + "!"
     const k=(G.t-G.tellT)/(G.tellLen||.3),on=Math.floor(G.t*24)%2;
@@ -1066,7 +1228,7 @@ function drawFX(L){
       if(twoSided){textFor(0,p.text,L.cx,L.cy+L.s*.33,sz*p.size*sc,p.color);textFor(1,p.text,L.cx,L.cy-L.s*.33,sz*p.size*sc,p.color)}
       else bigText(p.text,L.cx,L.cy-L.s*.33,sz*p.size*sc,p.color);
     }else{
-      const y=p.side===0?L.cy+L.s*.5-p.t*25:L.cy-L.s*.5+(twoSided?p.t*25:-p.t*25);
+      const mine=p.side===ME(),y=mine?L.cy+L.s*.5-p.t*25:L.cy-L.s*.5+(twoSided?p.t*25:-p.t*25);
       textFor(p.side,p.text,L.cx,y,sz*.85*p.size*sc,p.color);
     }
     ctx.globalAlpha=1;
@@ -1125,6 +1287,8 @@ function frame(now){
   ctx.save();
   if(G.shake>0)ctx.translate((Math.random()-.5)*G.shake*16,(Math.random()-.5)*G.shake*16);
   drawBG(L);
+  const flipView=G.online&&G.me===1; // guest sees the table from their own (Red) end
+  if(flipView){ctx.save();ctx.translate(L.cx,L.cy);ctx.rotate(Math.PI);ctx.translate(-L.cx,-L.cy)}
   drawTable(L);
   // hand position: Blue winning pushes the hand left onto the blue pad
   const K=solveArms(L,G.pv);
@@ -1137,6 +1301,8 @@ function frame(now){
   const order=G.pv>=0?[1,0]:[0,1];
   order.forEach(i=>drawArm(i,L,G2,An[i]));
   drawGrip(L,G2,hx,hy);
+  for(const p of G.parts){ctx.globalAlpha=1-p.t/p.life;blob(p.x,p.y,p.r,p.r,p.col,0);ctx.globalAlpha=1}
+  if(flipView)ctx.restore();
   drawFX(L);
   ctx.restore();
   if(LOOK!=='smooth')retroPass();
