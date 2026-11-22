@@ -61,6 +61,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 .rrow b{font-weight:400;color:#fff}.rrow b.w{color:#86efac}.rrow b.l{color:#fca5a5}
 .bigrec{display:flex;flex-direction:column;align-items:center;gap:6px}.bigrec b{font-weight:400;font-size:34px;color:var(--yellow);text-shadow:3px 3px 0 var(--ink)}.bigrec small{font-family:"VT323",monospace;font-size:18px;color:#a5b4fc}
 #acctChip b{font-weight:400;color:var(--yellow)}
+#acctChip{text-align:center;line-height:1.3}.lnk{color:#93c5fd;font-size:18px}
 #acct{justify-content:flex-start;padding-top:max(28px,env(safe-area-inset-top))}
 #acct>*{flex:none}
 .codebox{display:flex;flex-direction:column;align-items:center;gap:8px;background:#0b0820;border:4px solid #fff;clip-path:var(--notch);padding:10px 22px;min-width:200px}
@@ -110,12 +111,10 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 <div id="menu" class="ov">
   <h1>KNUCKLE<br>DOWN!</h1>
   <p class="sub">HEAD-TO-HEAD ARM WRESTLING</p>
-  <p class="meta" id="acctChip"></p>
   <button class="pxb" id="storyBtn" style="background:#dc2626">STORY MODE</button>
   <button class="pxb" id="cpu">VS CPU</button>
   <button class="pxb" id="pvp">2 PLAYER FACE-OFF</button>
   <button class="pxb" id="onlineBtn" style="background:var(--blue)">ONLINE</button>
-  <button class="alt pxb" id="acctBtn">ACCOUNT &amp; RECORD</button>
   <button class="alt pxb" id="optBtn">OPTIONS</button>
   <button class="alt pxb" id="howBtn">HOW TO PLAY</button>
 <div id="how" hidden>
@@ -378,7 +377,6 @@ document.getElementById('pvp').onclick=()=>{ac();G.mode='pvp';G.vsCPU=false;star
 document.getElementById('onlineBtn').onclick=()=>{ac();onlineMenu()};
 document.getElementById('cpu').onclick=()=>{ac();G.mode='cpu';G.vsCPU=true;startMatch()};
 document.getElementById('storyBtn').onclick=()=>{ac();storyHub()};
-document.getElementById('acctBtn').onclick=()=>acctScreen();
 document.getElementById('optBtn').onclick=()=>showOnly('opts');
 document.getElementById('optBack').onclick=()=>showOnly('menu');
 document.querySelectorAll('#sndSeg button').forEach(b=>b.onclick=()=>{ac();setSound(b.dataset.s==='1')});
@@ -598,14 +596,22 @@ function netLeave(){
   NET.ch=null;NET.role=null;NET.guest=null;G.online=false;G.me=0;padB.classList.remove('red');
   G.phase='menu';padB.hidden=true;padT.hidden=true;gameBtns(false);showOnly('menu');
 }
-function onlineMenu(){
-  onlineScreen(`<h2>ONLINE</h2><p class="sub">PLAY A FRIEND ON ANOTHER PHONE<br>NO ACCOUNT NEEDED</p>
+function onlineMenu(msg){
+  const who=SESSION?`<p class="meta" id="acctChip">SIGNED IN AS <b>${esc(SESSION.name.toUpperCase())}</b>${ACCT?` · ${ACCT.total.w}-${ACCT.total.l}`:''}<br><a href="#" id="onOut" class="lnk">SIGN OUT</a></p>`
+    :`<p class="meta" id="acctChip">PLAYING AS GUEST<br><a href="#" id="onIn" class="lnk">SIGN IN TO SAVE YOUR RECORD</a></p>`;
+  onlineScreen(`<h2>ONLINE</h2><p class="sub">PLAY A FRIEND ON ANOTHER PHONE</p>
+    ${who}${msg?`<p class="msg">${esc(msg)}</p>`:''}
     <button class="pxb" id="onHost">CREATE ROOM</button>
     <button class="pxb" id="onJoin" style="background:var(--blue)">JOIN ROOM</button>
+    ${SESSION?'<button class="alt pxb" id="onRec">MY RECORD</button>':''}
     <button class="alt pxb" id="onBack">BACK</button>`);
   document.getElementById('onHost').onclick=hostRoom;
   document.getElementById('onJoin').onclick=joinForm;
   document.getElementById('onBack').onclick=()=>showOnly('menu');
+  const i=document.getElementById('onIn');if(i)i.onclick=e=>{e.preventDefault();acctScreen()};
+  const o=document.getElementById('onOut');if(o)o.onclick=async e=>{e.preventDefault();try{await rpc('ww_logout',auth())}catch(_){}setSession(null);onlineMenu()};
+  const r=document.getElementById('onRec');if(r)r.onclick=()=>acctScreen();
+  if(SESSION&&!ACCT)acctLoad().then(()=>{if(!document.getElementById('online').hidden&&!NET.role)onlineMenu()});
 }
 async function hostRoom(){
   NET.role='host';NET.code=genCode();NET.key=String(Math.floor(1000+Math.random()*9000));NET.guest=null;
@@ -742,7 +748,7 @@ async function acctLoad(){
 function acctScreen(msg){
   showOnly('acct');const el=document.getElementById('acct');el.scrollTop=0;
   if(!SESSION){
-    el.innerHTML=`<h2>WW ACCOUNT</h2><p class="sub">ONE ACCOUNT FOR EVERY WW GAME<br>SAVES YOUR RECORD AND STORY</p>
+    el.innerHTML=`<h2>SIGN IN</h2><p class="sub">ONE WW ACCOUNT FOR EVERY WW GAME<br>SAVES YOUR RECORD AND STORY</p>
       <label class="field"><small>ACCOUNT NAME</small><input id="acName" maxlength="16" autocomplete="username" spellcheck="false" style="letter-spacing:2px;font-size:16px;width:260px;text-transform:none"></label>
       <label class="field"><small>PIN</small><input id="acPin" maxlength="4" inputmode="numeric" type="password" autocomplete="current-password"></label>
       <p class="msg" id="acMsg">${msg||''}</p>
@@ -754,16 +760,16 @@ function acctScreen(msg){
       if(name.length<2||p.length!==4){m.textContent='ENTER YOUR ACCOUNT NAME AND 4-DIGIT PIN';return}
       m.textContent='...';
       try{const r=await rpc(fn,{p_name:name,p_pin:p});if(r.ok===false){m.textContent=String(r.error).toUpperCase();return}
-        setSession({name:r.name,token:r.token});await acctLoad();acctScreen()}catch(e){m.textContent=e.message}};
+        setSession({name:r.name,token:r.token});await acctLoad();onlineMenu()}catch(e){m.textContent=e.message}};
     document.getElementById('acIn').onclick=()=>go('ww_login');
     document.getElementById('acNew').onclick=()=>go('ww_create_account');
-    document.getElementById('acBack').onclick=()=>showOnly('menu');
+    document.getElementById('acBack').onclick=()=>onlineMenu();
     return;
   }
   el.innerHTML=`<h2>${esc(SESSION.name.toUpperCase())}</h2><p class="msg">LOADING...</p>`;
   (ACCT?Promise.resolve():acctLoad()).then(()=>{
     if(!SESSION)return acctScreen();
-    const a=ACCT;if(!a){el.innerHTML=`<h2>${esc(SESSION.name.toUpperCase())}</h2><p class="msg">COULDN'T LOAD YOUR RECORD.</p><button class="alt pxb" id="acBack">BACK</button>`;document.getElementById('acBack').onclick=()=>showOnly('menu');return}
+    const a=ACCT;if(!a){el.innerHTML=`<h2>${esc(SESSION.name.toUpperCase())}</h2><p class="msg">COULDN'T LOAD YOUR RECORD.</p><button class="alt pxb" id="acBack">BACK</button>`;document.getElementById('acBack').onclick=()=>onlineMenu();return}
     const md=k=>{const v=a.modes[k]||{w:0,l:0,played:0};return k==='pvp'?`${v.played} PLAYED`:`${v.w}-${v.l}`};
     const opp=OPP.map((o,k)=>{const r=a.opponents.find(x=>x.name===o.name);return `<div class="rrow"><span>${r||k<=STORY.idx?o.name:'??????'}</span><b>${r?r.w+'-'+r.l:'—'}</b></div>`}).join('');
     const rec=a.recent.map(r=>`<div class="rrow"><span>${r.mode==='story'?r.opponent:r.mode==='cpu'?'VS CPU':r.mode==='online'?'ONLINE':'LOCAL 2P'}</span><b class="${r.won?'w':r.won===false?'l':''}">${r.won?'W':r.won===false?'L':'·'} ${r.my_rounds}-${r.their_rounds}</b></div>`).join('')||'<p class="meta">NO MATCHES YET</p>';
@@ -777,8 +783,8 @@ function acctScreen(msg){
       <div class="card"><h3>LAST 10</h3>${rec}</div>
       <button class="alt pxb" id="acOut">SIGN OUT</button>
       <button class="alt pxb" id="acBack">BACK</button>`;
-    document.getElementById('acBack').onclick=()=>showOnly('menu');
-    document.getElementById('acOut').onclick=async()=>{try{await rpc('ww_logout',auth())}catch(e){}setSession(null);acctScreen()};
+    document.getElementById('acBack').onclick=()=>onlineMenu();
+    document.getElementById('acOut').onclick=async()=>{try{await rpc('ww_logout',auth())}catch(e){}setSession(null);onlineMenu()};
   });
 }
 /* per-match tracking for the player on this device */
