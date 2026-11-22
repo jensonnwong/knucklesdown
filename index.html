@@ -55,6 +55,14 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #ovT{font-size:clamp(22px,8vw,44px)}
 .ov h2{margin:0;font-size:clamp(16px,5.5vw,26px);font-weight:400;color:var(--yellow);text-shadow:3px 3px 0 var(--ink)}
 #story{gap:10px}
+.card{width:min(320px,90vw);background:#0b0820;border:3px solid #fff;clip-path:var(--notch);--px:3px;padding:8px 12px;box-sizing:border-box}
+.card h3{margin:0 0 6px;font-size:10px;font-weight:400;color:var(--yellow)}
+.rrow{display:flex;justify-content:space-between;font-family:"VT323",monospace;font-size:19px;line-height:1.1}
+.rrow b{font-weight:400;color:#fff}.rrow b.w{color:#86efac}.rrow b.l{color:#fca5a5}
+.bigrec{display:flex;flex-direction:column;align-items:center;gap:6px}.bigrec b{font-weight:400;font-size:34px;color:var(--yellow);text-shadow:3px 3px 0 var(--ink)}.bigrec small{font-family:"VT323",monospace;font-size:18px;color:#a5b4fc}
+#acctChip b{font-weight:400;color:var(--yellow)}
+#acct{justify-content:flex-start;padding-top:max(28px,env(safe-area-inset-top))}
+#acct>*{flex:none}
 .codebox{display:flex;flex-direction:column;align-items:center;gap:8px;background:#0b0820;border:4px solid #fff;clip-path:var(--notch);padding:10px 22px;min-width:200px}
 .codebox small,.field small{font-family:"VT323",monospace;font-size:18px;color:#a5b4fc}
 .codebox b{font-weight:400;font-size:clamp(26px,9vw,40px);letter-spacing:10px;color:var(--yellow);text-shadow:3px 3px 0 var(--ink)}
@@ -102,10 +110,12 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 <div id="menu" class="ov">
   <h1>KNUCKLE<br>DOWN!</h1>
   <p class="sub">HEAD-TO-HEAD ARM WRESTLING</p>
+  <p class="meta" id="acctChip"></p>
   <button class="pxb" id="storyBtn" style="background:#dc2626">STORY MODE</button>
   <button class="pxb" id="cpu">VS CPU</button>
   <button class="pxb" id="pvp">2 PLAYER FACE-OFF</button>
   <button class="pxb" id="onlineBtn" style="background:var(--blue)">ONLINE</button>
+  <button class="alt pxb" id="acctBtn">ACCOUNT &amp; RECORD</button>
   <button class="alt pxb" id="optBtn">OPTIONS</button>
   <button class="alt pxb" id="howBtn">HOW TO PLAY</button>
 <div id="how" hidden>
@@ -138,6 +148,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 
 <div id="story" class="ov" hidden></div>
 <div id="online" class="ov" hidden></div>
+<div id="acct" class="ov" hidden></div>
 
 <div id="over" class="ov" hidden>
   <h1 id="ovT">BLUE WINS!</h1>
@@ -308,12 +319,12 @@ let handXY=[0,0];
 function startMatch(){
   if(G.mode==='story'){const o=OPP[G.opp];COL[1]=o.col;NAMES[1]=o.name;G.stats=[BASE_STATS,o.stats];G.ai=Object.assign({rate:6,counter:.3,umph:.4,react:.18,hold:1,tell:.3},o.ai)}
   else{COL[1]=DEF_COL1;NAMES[1]='TANK';G.stats=[BASE_STATS,BASE_STATS];G.ai=Object.assign({hold:.6+G.diff*.4,snap:G.diff>0,tell:[.45,.3,.18][G.diff]},DIFF[G.diff])}
-  G.wins=[0,0];G.round=1;startRound();showOnly(null);padB.hidden=false;padT.hidden=G.vsCPU||G.online;gameBtns(true)}
+  G.wins=[0,0];G.round=1;msReset();startRound();showOnly(null);padB.hidden=false;padT.hidden=G.vsCPU||G.online;gameBtns(true)}
 function startRound(){
   const rn=['one','two','three'][G.round-1];
   announce((G.mode==='story'&&G.round===1?NAMES[1].toLowerCase()+'! ':'')+'Round '+rn+'... ready...',{rate:G.mode==='story'&&G.round===1?1.05:.95});P=[mk(),mk()];G.p=0;G.pv=0;G.phase='ready';G.phaseT=0;G.fouled=[false,false];G.pops=[];G.cpu={acc:0,seenU:-9,umphAt:0,resting:false,holdUntil:0};}
 function pin(w){G.phase='pinned';G.phaseT=0;G.wins[w]++;G.p=w===0?1:-1;G.shake=1;G.flash=1;pop('PINNED!','#fde047',-1,1.4);SFX.pin();burst(handXY[0],handXY[1],'#fde047',30);P.forEach(pl=>{pl.down=false;pl.holding=false})}
-function foul(i){if(G.fouled[i])return;G.fouled[i]=true;G.p+=i===0?-.12:.12;pop('FOUL!','#f97316',i);SFX.foul()}
+function foul(i){if(G.fouled[i])return;G.fouled[i]=true;if(mine(i))MS.fouls++;G.p+=i===0?-.12:.12;pop('FOUL!','#f97316',i);SFX.foul()}
 
 /* ---------- inputs ---------- */
 function pull(i,down){
@@ -326,7 +337,7 @@ function pull(i,down){
     pl.lastTap=G.t;
     const st=G.stats[i];pl.D=Math.min(9,pl.D+(pl.gassed>0?.3:.9)*st.pow);
     if(pl.gassed<=0)pl.end-=1.2*st.cost;
-    pl.bump=1;SFX.tap(i);
+    pl.bump=1;SFX.tap(i);if(mine(i))MS.taps++;
   }else{pl.down=false;pl.holding=false}
 }
 function umph(i){
@@ -340,6 +351,7 @@ function umph(i){
   if(G.t-o.umphT<.3&&!o.countered){o.D=Math.max(0,o.D-3.2);o.countered=true;pow*=1.3;cost=6;tag='COUNTER!';col='#f0abfc';snd=SFX.counter}
   const st=G.stats[i];pow*=st.umph;cost*=st.cost;
   if(pl.end<cost){pow*=Math.max(.2,pl.end/cost);pl.end=0}else pl.end-=cost;
+  if(mine(i)){MS.umphs++;if(tag==='SNAP!')MS.snaps++;if(tag==='COUNTER!')MS.counters++}
   pl.D=Math.min(9,pl.D+pow);pl.cd=.8;pl.umphT=G.t;pl.countered=false;pl.bump=1.6;
   G.shake=Math.max(G.shake,tag==='UMPH!'?.45:.7);
   pop(tag,col,i,tag==='UMPH!'?1:1.15);snd(i);burst(handXY[0],handXY[1],col,tag==='UMPH!'?12:22);
@@ -366,6 +378,7 @@ document.getElementById('pvp').onclick=()=>{ac();G.mode='pvp';G.vsCPU=false;star
 document.getElementById('onlineBtn').onclick=()=>{ac();onlineMenu()};
 document.getElementById('cpu').onclick=()=>{ac();G.mode='cpu';G.vsCPU=true;startMatch()};
 document.getElementById('storyBtn').onclick=()=>{ac();storyHub()};
+document.getElementById('acctBtn').onclick=()=>acctScreen();
 document.getElementById('optBtn').onclick=()=>showOnly('opts');
 document.getElementById('optBack').onclick=()=>showOnly('menu');
 document.querySelectorAll('#sndSeg button').forEach(b=>b.onclick=()=>{ac();setSound(b.dataset.s==='1')});
@@ -433,7 +446,7 @@ const DEF_COL1={main:'#dc2626',light:'#f87171',skin:'#a86b45',skinD:'#7c4a2b'};
 const BASE_STATS={pow:1,cost:1,regen:1,umph:1};
 let STORY={idx:0,lives:3,w:0,l:0,belts:[]};
 try{const v=JSON.parse(localStorage.getItem('kd_story')||'null');if(v&&typeof v.idx==='number')STORY=Object.assign(STORY,v)}catch(e){}
-const saveStory=()=>{try{localStorage.setItem('kd_story',JSON.stringify(STORY))}catch(e){}};
+const saveStory=(noCloud)=>{try{localStorage.setItem('kd_story',JSON.stringify(STORY))}catch(e){};if(!noCloud&&typeof SESSION!=='undefined'&&SESSION)rpc('kd_save_story',Object.assign(auth(),{p_story:STORY})).catch(()=>{})};
 const circuitOf=i=>CIRCUITS.findIndex(c=>i>=c.from&&i<=c.to);
 
 /* 24x24 pixel portrait, drawn procedurally */
@@ -484,7 +497,7 @@ function statBars(o){
   return Object.entries(v).map(([k,val])=>{const n=Math.max(1,Math.min(10,Math.round(val*(k==='SPEED'||k==='TRICKS'?10:6.5))));
     return `<div class="stat"><span>${k}</span><i>${'<b></b>'.repeat(n)}${'<b class=o></b>'.repeat(10-n)}</i></div>`}).join('');
 }
-function showOnly(id){['menu','opts','story','over','online'].forEach(k=>{const e=document.getElementById(k);if(e)e.hidden=k!==id})}
+function showOnly(id){['menu','opts','story','over','online','acct'].forEach(k=>{const e=document.getElementById(k);if(e)e.hidden=k!==id})}
 function storyHub(msg){
   G.phase='menu';showOnly('story');padB.hidden=true;padT.hidden=true;gameBtns(false);
   const ci=Math.max(0,circuitOf(Math.min(STORY.idx,OPP.length-1))),C=CIRCUITS[ci];
@@ -528,6 +541,7 @@ function storyIntro(k,defend){
   document.getElementById('stBack2').onclick=()=>storyHub();
 }
 function storyResult(w){
+  logMatch(w);
   const k=G.opp,o=OPP[k],ci=circuitOf(k);
   showOnly('story');
   if(w===0){
@@ -656,7 +670,7 @@ function netStart(){ // host
 }
 function guestStart(){
   NET.lastRx=performance.now();ac();G.online=true;G.me=1;G.mode='online';G.vsCPU=false;
-  COL[1]=DEF_COL1;NAMES[1]='TANK';G.wins=[0,0];G.round=1;P=[mk(),mk()];G.phase='ready';G.phaseT=0;G.pops=[];
+  COL[1]=DEF_COL1;NAMES[1]='TANK';G.wins=[0,0];G.round=1;msReset();P=[mk(),mk()];G.phase='ready';G.phaseT=0;G.pops=[];
   showOnly(null);padB.hidden=false;padT.hidden=true;gameBtns(true);padB.classList.add('red');
 }
 function netGone(){
@@ -690,12 +704,95 @@ function applyState(m){
   if(m.ph!=='over'&&prev==='over'){showOnly(null);padB.hidden=false;gameBtns(true)}
 }
 function showOver(w){
+  logMatch(w);
   G.phase='over';padB.hidden=true;padT.hidden=true;gameBtns(false);
   const mine=w===ME();
   document.getElementById('ovT').textContent=G.online?(mine?'YOU WIN!':'YOU LOSE'):(G.vsCPU?(w===0?'YOU WIN!':'CPU WINS!'):(w===0?'BLUE WINS!':'RED WINS!'));
   document.getElementById('ovS').textContent=`${NAMES[w]} TAKES IT ${G.wins[w]}–${G.wins[1-w]}`;
   document.getElementById('again').textContent='REMATCH';
   showOnly('over');
+}
+
+/* ---------- WW ACCOUNT (shared sign-in) ----------
+   Same WW account + session as the other WW games on this site ('ww-session' in localStorage),
+   so signing in once in any of them signs you in here. Knuckle Down data lives in kd_* tables. */
+let SESSION=null;try{SESSION=JSON.parse(localStorage.getItem('ww-session')||'null')}catch(e){}
+let ACCT=null; // last summary from the server
+async function rpc(fn,args){
+  let r;try{r=await fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+SB_KEY},body:JSON.stringify(args)})}
+  catch(e){throw new Error("CAN'T REACH THE SERVER. ACCOUNTS WORK ON THE GITHUB VERSION.")}
+  let j=null;try{j=await r.json()}catch(e){}
+  if(!r.ok){const m=(j&&(j.message||j.error))||'SOMETHING WENT WRONG.';if(/sign in again/i.test(m))setSession(null);throw new Error(m.toUpperCase())}
+  return j;
+}
+const auth=()=>({p_name:SESSION.name,p_token:SESSION.token});
+function setSession(s){SESSION=s;try{s?localStorage.setItem('ww-session',JSON.stringify(s)):localStorage.removeItem('ww-session')}catch(e){};if(!s)ACCT=null;acctChip()}
+function acctChip(){const c=document.getElementById('acctChip');if(!c)return;
+  c.innerHTML=SESSION?`SIGNED IN: <b>${esc(SESSION.name.toUpperCase())}</b>${ACCT?` · ${ACCT.total.w}-${ACCT.total.l}`:''}`:'SIGN IN TO SAVE YOUR RECORD'}
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const storyScore=s=>s&&typeof s.idx==='number'?(s.belts||[]).length*100+s.idx*10+(s.w||0)/1000:-1;
+function mergeStory(cloud){ // keep whichever career got further, then make both sides match
+  if(storyScore(cloud)>storyScore(STORY)){STORY=Object.assign({idx:0,lives:3,w:0,l:0,belts:[]},cloud);saveStory(true)}
+  else if(storyScore(STORY)>storyScore(cloud))saveStory();
+}
+async function acctLoad(){
+  if(!SESSION)return;
+  try{const r=await rpc('kd_load',auth());ACCT=r;mergeStory(r.story);acctChip()}catch(e){acctChip()}
+}
+function acctScreen(msg){
+  showOnly('acct');const el=document.getElementById('acct');el.scrollTop=0;
+  if(!SESSION){
+    el.innerHTML=`<h2>WW ACCOUNT</h2><p class="sub">ONE ACCOUNT FOR EVERY WW GAME<br>SAVES YOUR RECORD AND STORY</p>
+      <label class="field"><small>ACCOUNT NAME</small><input id="acName" maxlength="16" autocomplete="username" spellcheck="false" style="letter-spacing:2px;font-size:16px;width:260px;text-transform:none"></label>
+      <label class="field"><small>PIN</small><input id="acPin" maxlength="4" inputmode="numeric" type="password" autocomplete="current-password"></label>
+      <p class="msg" id="acMsg">${msg||''}</p>
+      <button class="pxb" id="acIn">SIGN IN</button>
+      <button class="pxb" id="acNew" style="background:var(--blue)">CREATE ACCOUNT</button>
+      <button class="alt pxb" id="acBack">BACK</button>`;
+    const pin=document.getElementById('acPin');pin.oninput=()=>{pin.value=pin.value.replace(/\D/g,'')};
+    const go=async fn=>{const name=document.getElementById('acName').value.trim(),p=pin.value,m=document.getElementById('acMsg');
+      if(name.length<2||p.length!==4){m.textContent='ENTER YOUR ACCOUNT NAME AND 4-DIGIT PIN';return}
+      m.textContent='...';
+      try{const r=await rpc(fn,{p_name:name,p_pin:p});if(r.ok===false){m.textContent=String(r.error).toUpperCase();return}
+        setSession({name:r.name,token:r.token});await acctLoad();acctScreen()}catch(e){m.textContent=e.message}};
+    document.getElementById('acIn').onclick=()=>go('ww_login');
+    document.getElementById('acNew').onclick=()=>go('ww_create_account');
+    document.getElementById('acBack').onclick=()=>showOnly('menu');
+    return;
+  }
+  el.innerHTML=`<h2>${esc(SESSION.name.toUpperCase())}</h2><p class="msg">LOADING...</p>`;
+  (ACCT?Promise.resolve():acctLoad()).then(()=>{
+    if(!SESSION)return acctScreen();
+    const a=ACCT;if(!a){el.innerHTML=`<h2>${esc(SESSION.name.toUpperCase())}</h2><p class="msg">COULDN'T LOAD YOUR RECORD.</p><button class="alt pxb" id="acBack">BACK</button>`;document.getElementById('acBack').onclick=()=>showOnly('menu');return}
+    const md=k=>{const v=a.modes[k]||{w:0,l:0,played:0};return k==='pvp'?`${v.played} PLAYED`:`${v.w}-${v.l}`};
+    const opp=OPP.map((o,k)=>{const r=a.opponents.find(x=>x.name===o.name);return `<div class="rrow"><span>${r||k<=STORY.idx?o.name:'??????'}</span><b>${r?r.w+'-'+r.l:'—'}</b></div>`}).join('');
+    const rec=a.recent.map(r=>`<div class="rrow"><span>${r.mode==='story'?r.opponent:r.mode==='cpu'?'VS CPU':r.mode==='online'?'ONLINE':'LOCAL 2P'}</span><b class="${r.won?'w':r.won===false?'l':''}">${r.won?'W':r.won===false?'L':'·'} ${r.my_rounds}-${r.their_rounds}</b></div>`).join('')||'<p class="meta">NO MATCHES YET</p>';
+    const m=a.moves;
+    el.innerHTML=`<h2>${esc(SESSION.name.toUpperCase())}</h2>
+      <div class="bigrec"><b>${a.total.w}-${a.total.l}</b><small>${a.streak>1?`WIN STREAK ${a.streak}`:'OVERALL RECORD'}</small></div>
+      <div class="belts">${CIRCUITS.map((c,k)=>`<span class="belt ${STORY.belts.includes(k)?'on':''}" style="--b:${c.belt}"></span>`).join('')}</div>
+      <div class="card"><div class="rrow"><span>STORY</span><b>${md('story')}</b></div><div class="rrow"><span>VS CPU</span><b>${md('cpu')}</b></div><div class="rrow"><span>ONLINE</span><b>${md('online')}</b></div><div class="rrow"><span>LOCAL 2P</span><b>${md('pvp')}</b></div></div>
+      <div class="card"><h3>OPPONENTS</h3>${opp}</div>
+      <div class="card"><h3>MOVES</h3><div class="rrow"><span>TAPS</span><b>${m.taps}</b></div><div class="rrow"><span>UMPHS</span><b>${m.umphs}</b></div><div class="rrow"><span>SNAPS</span><b>${m.snaps}</b></div><div class="rrow"><span>COUNTERS</span><b>${m.counters}</b></div><div class="rrow"><span>TIMES GASSED</span><b>${m.gassed}</b></div><div class="rrow"><span>FOULS</span><b>${m.fouls}</b></div>${m.fastest_s?`<div class="rrow"><span>FASTEST 2-0</span><b>${Number(m.fastest_s).toFixed(1)}S</b></div>`:''}</div>
+      <div class="card"><h3>LAST 10</h3>${rec}</div>
+      <button class="alt pxb" id="acOut">SIGN OUT</button>
+      <button class="alt pxb" id="acBack">BACK</button>`;
+    document.getElementById('acBack').onclick=()=>showOnly('menu');
+    document.getElementById('acOut').onclick=async()=>{try{await rpc('ww_logout',auth())}catch(e){}setSession(null);acctScreen()};
+  });
+}
+/* per-match tracking for the player on this device */
+let MS=null;
+function msReset(){MS={t0:performance.now(),taps:0,umphs:0,snaps:0,counters:0,gassed:0,fouls:0}}
+const mine=i=>MS&&(G.online?i===G.me:i===0);
+async function logMatch(w){
+  if(!SESSION||!MS)return;const ms=MS;MS=null;
+  const me=ME(),won=G.mode==='pvp'?null:w===me;
+  const rec={mode:G.mode==='online'?'online':G.mode,won,my_rounds:G.wins[me],their_rounds:G.wins[1-me],duration_s:+((performance.now()-ms.t0)/1000).toFixed(1),
+    opponent:G.mode==='story'?OPP[G.opp].name:G.mode==='cpu'?'CPU':G.mode==='online'?'ONLINE':'LOCAL',
+    level:G.mode==='story'?CIRCUITS[circuitOf(G.opp)].name:G.mode==='cpu'?['EASY','NORMAL','HARD'][G.diff]:null,
+    stats:{taps:ms.taps,umphs:ms.umphs,snaps:ms.snaps,counters:ms.counters,gassed:ms.gassed,fouls:ms.fouls}};
+  try{const r=await rpc('kd_log_match',Object.assign(auth(),{p_rec:rec}));if(r.ok!==false){ACCT=Object.assign({name:SESSION.name},r);acctChip()}}catch(e){}
 }
 
 /* ---------- CPU ---------- */
@@ -773,7 +870,7 @@ function update(dt){
       }
       pl.end=clamp(pl.end,0,100);
       if(i===1&&G.mode==='story'&&OPP[G.opp].secondWind&&!pl.sw&&pl.end<18&&pl.gassed<=0){pl.sw=true;pl.end=70;pop('SECOND WIND!','#fde047',1,.9)}
-      if(pl.end<=0&&pl.gassed<=0){pl.gassed=1.8;pl.holding=false;pl.D*=.4;pop('GASSED!','#94a3b8',i);SFX.gassed(i)}
+      if(pl.end<=0&&pl.gassed<=0){pl.gassed=1.8;pl.holding=false;pl.D*=.4;pop('GASSED!','#94a3b8',i);SFX.gassed(i);if(mine(i))MS.gassed++}
       f[i]=pl.D*(pl.gassed>0?.35:1)*(.55+.45*pl.end/100);
     }
     if(G.p<0)f[0]*=1-.35*Math.abs(G.p);
@@ -1310,6 +1407,7 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+acctChip();acctLoad();
 window.KD={G,P,audio:{ac,SFX,click,get AC(){return AC},MASTER:()=>MASTER}};
 try{document.fonts&&document.fonts.load('16px "Press Start 2P"')}catch(e){}
 })();
