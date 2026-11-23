@@ -157,6 +157,21 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 </div>
 
 <script>
+/* self-update: phones may reuse a saved copy of this page for a few minutes after an update.
+   On open (and when the app comes back to the foreground) ask the server for the live file,
+   and if its version differs from this one, reload onto it. */
+const KD_VERSION='2026-11-22b';
+(function kdUpdate(){
+  const hash0=location.hash; // keep invite links (#join-...) through the reload
+  if(!/^https?:$/.test(location.protocol)||/localhost|127\.0\.0\.1/.test(location.hostname))return;
+  const check=()=>fetch(location.pathname+'?_='+Date.now(),{cache:'no-store'}).then(r=>r.ok?r.text():'').then(t=>{
+    const m=/const KD_VERSION='([^']+)'/.exec(t);
+    if(m&&m[1]!==KD_VERSION){let n=0;try{n=+sessionStorage.getItem('kd_upd')||0;sessionStorage.setItem('kd_upd',n+1)}catch(e){}
+      if(n<2)location.replace(location.pathname+'?v='+encodeURIComponent(m[1])+hash0)}
+  }).catch(()=>{});
+  check();
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&document.getElementById('menu')&&!document.getElementById('menu').hidden)check()});
+})();
 (()=>{
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 const padB=document.getElementById('padB'),padT=document.getElementById('padT');
