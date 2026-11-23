@@ -621,11 +621,23 @@ async function hostRoom(){
     <div class="codebox"><small>ROOM CODE</small><b>${NET.code}</b></div>
     <div class="codebox"><small>JOIN KEY</small><b>${NET.key}</b></div>
     <p class="msg" id="onStatus">WAITING FOR OPPONENT...</p>
+    <button class="pxb" id="onCopy" style="background:#16a34a">COPY INVITE</button>
     <p class="meta">YOU ARE BLUE</p>
     <button class="alt pxb" id="onBack">CANCEL</button>`);
   document.getElementById('onBack').onclick=netLeave;
+  document.getElementById('onCopy').onclick=e=>copyInvite(e.currentTarget);
 }
-function joinForm(){
+function inviteText(){
+  const link=location.origin+location.pathname+'#join-'+NET.code+'-'+NET.key;
+  return `Arm wrestle me in Knuckle Down! 💪\nRoom: ${NET.code}\nKey: ${NET.key}\n${link}`;
+}
+async function copyInvite(btn){
+  const t=inviteText();let ok=false;
+  try{await navigator.clipboard.writeText(t);ok=true}catch(e){
+    try{const ta=document.createElement('textarea');ta.value=t;ta.setAttribute('readonly','');ta.style.cssText='position:fixed;opacity:0;top:0';document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,t.length);ok=document.execCommand('copy');ta.remove()}catch(_){}}
+  btn.textContent=ok?'COPIED!':"COULDN'T COPY";setTimeout(()=>{btn.textContent='COPY INVITE'},1800);
+}
+function joinForm(pre){
   onlineScreen(`<h2>JOIN ROOM</h2>
     <label class="field"><small>ROOM CODE</small><input id="inCode" maxlength="4" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABCD"></label>
     <label class="field"><small>JOIN KEY</small><input id="inKey" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="1234"></label>
@@ -636,7 +648,7 @@ function joinForm(){
   const k=document.getElementById('inKey');k.oninput=()=>{k.value=k.value.replace(/\D/g,'')};
   document.getElementById('onGo').onclick=joinRoom;
   document.getElementById('onBack').onclick=onlineMenu;
-  c.focus();
+  if(pre){c.value=pre.code;k.value=pre.key;document.getElementById('onStatus').textContent='TAP JOIN TO PLAY'}else c.focus();
 }
 async function joinRoom(){
   const code=document.getElementById('inCode').value,key=document.getElementById('inKey').value,st=document.getElementById('onStatus');
@@ -1414,6 +1426,10 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 acctChip();acctLoad();
+// invite links: ...#join-ABCD-1234 opens the join screen with the code and key filled in
+(()=>{const m=/^#join-([A-Z]{4})-(\d{4})$/i.exec(location.hash);if(!m)return;
+  try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}
+  joinForm({code:m[1].toUpperCase(),key:m[2]});})();
 window.KD={G,P,audio:{ac,SFX,click,get AC(){return AC},MASTER:()=>MASTER}};
 try{document.fonts&&document.fonts.load('16px "Press Start 2P"')}catch(e){}
 })();
